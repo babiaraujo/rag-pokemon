@@ -1,4 +1,3 @@
-
 import os
 from dotenv import load_dotenv
 from langchain.embeddings import OpenAIEmbeddings
@@ -12,49 +11,49 @@ from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from utils.db_loader import load_documents_from_database
 
 load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 
-if not OPENAI_API_KEY or not COHERE_API_KEY:
-    raise ValueError("API keys missing in .env")
+openai_key = os.getenv("OPENAI_API_KEY")
+cohere_key = os.getenv("COHERE_API_KEY")
 
-raw_docs = load_documents_from_database()
+if not openai_key or not cohere_key:
+    raise EnvironmentError("Missing OPENAI_API_KEY or COHERE_API_KEY in .env")
+
+documents = load_documents_from_database()
+
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=600,
     chunk_overlap=100,
     separators=["\n\n", "\n", ".", " ", ""]
 )
-docs = splitter.split_documents(raw_docs)
+chunks = splitter.split_documents(documents)
 
 embeddings = OpenAIEmbeddings()
-vectorstore = FAISS.from_documents(docs, embeddings)
+vector_store = FAISS.from_documents(chunks, embeddings)
 
-reranker = CohereReranker(cohere_api_key=COHERE_API_KEY, top_n=5)
-base_retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
-compression_retriever = ContextualCompressionRetriever(
+retriever = vector_store.as_retriever(search_kwargs={"k": 10})
+reranker = CohereReranker(cohere_api_key=cohere_key, top_n=5)
+compressed_retriever = ContextualCompressionRetriever(
     base_compressor=reranker,
-    base_retriever=base_retriever
+    base_retriever=retriever
 )
 
 llm = OpenAI(
-    temperature=0,
     model_name="gpt-3.5-turbo",
+    temperature=0,
     streaming=True,
     callbacks=[StreamingStdOutCallbackHandler()]
 )
 
 qa_chain = RetrievalQAWithSourcesChain.from_chain_type(
     llm=llm,
-    retriever=compression_retriever,
+    retriever=compressed_retriever,
     return_source_documents=True
 )
 
 while True:
-    query = input("\ndigite sua pergunta (ou 'sair' para encerrar): ")
-    if query.strip().lower() in ["sair", "exit", "quit"]:
+    question = input("\nDigite sua pergunta (ou 'sair' para encerrar): ").strip().lower()
+    if question in {"sair", "exit", "quit"}:
         break
-    result = qa_chain({"question": query})
-    print("\n>>> resposta:")
-    print(result["answer"])
-    print("\n>>> fontes:")
-    print(result["sources"])
+    result = qa_chain({"question": question})
+    print("\n>>> Resposta:\n", result["answer"])
+    print("\n>>> Fontes:\n", result["sources"])

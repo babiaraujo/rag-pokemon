@@ -27,4 +27,3 @@ utils/db_loader.py
 README.md
 requirements.txt
 ```
-# rag-pokemon

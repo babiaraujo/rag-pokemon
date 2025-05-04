@@ -1,0 +1,5 @@
+langchain
+openai
+cohere
+faiss-cpu
+python-dotenv
